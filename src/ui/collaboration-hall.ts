@@ -652,7 +652,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
   };
   const hallAvatarMarkup = (label, className) => {
     const avatar = deriveHallAvatar(label);
-    return '<div class="' + esc(className) + ' hall-agent-avatar" style="--agent-accent:' + esc(avatar.accent) + ';" data-animal="' + esc(avatar.animal) + '" aria-hidden="true"><div class="agent-stage"><canvas class="agent-pixel-canvas" width="128" height="128"></canvas></div></div>';
+    return '<div class="' + esc(className) + ' hall-agent-avatar" style="--agent-accent:' + esc(avatar.accent) + ';" data-animal="' + esc(avatar.animal) + '" aria-hidden="true"><div class="agent-stage"><canvas class="agent-pixel-canvas" width="64" height="64"></canvas></div></div>';
   };
   const paintHallPixelAvatars = (container) => {
     const api = window.__openclawPixelAvatar;
@@ -1353,16 +1353,19 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
       const selected = item.taskCardId === selectedTaskCardId;
       const ownerLabel = item.currentOwnerLabel || textWaitingOwner;
       const preview = item.headline || '';
-      return '<button type="button" class="hall-task-card' + (selected ? ' is-selected' : '') + '" data-task-card-id="' + esc(item.taskCardId) + '" data-project-id="' + esc(item.projectId) + '" data-task-id="' + esc(item.taskId) + '"' + (selected ? ' aria-current="page"' : '') + '>' +
-        '<div class="hall-task-card-row">' +
-          hallAvatarMarkup(ownerLabel || item.taskId || item.title, 'hall-task-card-avatar') +
-          '<div class="hall-task-card-copy">' +
-            '<div class="hall-task-title-row"><strong class="hall-task-title">' + esc(item.title) + '</strong><span class="hall-task-timestamp">' + esc(compactTimestamp(item.updatedAt)) + '</span></div>' +
-            '<div class="hall-task-preview' + (preview ? '' : ' is-empty') + '">' + esc(preview) + '</div>' +
-            '<div class="hall-task-meta">' + esc(ownerLabel) + ' · ' + esc(stageLabel(item.stage)) + '</div>' +
+      return '<div class="hall-task-card-wrapper' + (selected ? ' is-selected' : '') + '" data-task-card-id="' + esc(item.taskCardId) + '" data-project-id="' + esc(item.projectId) + '" data-task-id="' + esc(item.taskId) + '">' +
+        '<button type="button" class="hall-task-card' + (selected ? ' is-selected' : '') + '" data-task-card-id="' + esc(item.taskCardId) + '" data-project-id="' + esc(item.projectId) + '" data-task-id="' + esc(item.taskId) + '"' + (selected ? ' aria-current="page"' : '') + '>' +
+          '<div class="hall-task-card-row">' +
+            hallAvatarMarkup(ownerLabel || item.taskId || item.title, 'hall-task-card-avatar') +
+            '<div class="hall-task-card-copy">' +
+              '<div class="hall-task-title-row"><strong class="hall-task-title">' + esc(item.title) + '</strong><span class="hall-task-timestamp">' + esc(compactTimestamp(item.updatedAt)) + '</span></div>' +
+              '<div class="hall-task-preview' + (preview ? '' : ' is-empty') + '">' + esc(preview) + '</div>' +
+              '<div class="hall-task-meta">' + esc(ownerLabel) + ' · ' + esc(stageLabel(item.stage)) + '</div>' +
+            '</div>' +
           '</div>' +
-        '</div>' +
-        '</button>';
+        '</button>' +
+        '<button type="button" class="hall-task-delete-btn" data-task-delete="' + esc(item.taskId) + '" title="' + esc(t("Delete", "删除")) + '" onclick="event.stopPropagation();window.__openclawHallDeleteTask && window.__openclawHallDeleteTask(\'' + esc(item.taskId) + '\', \'' + esc(item.taskCardId) + '\')">×</button>' +
+      '</div>';
     }).join('');
     taskList.querySelectorAll('[data-task-card-id]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -2309,6 +2312,31 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
     await loadHall();
   };
   window.__openclawHallDebug = { ready: true };
+  
+  // 删除任务/群组
+  window.__openclawHallDeleteTask = async (taskId: string, taskCardId: string) => {
+    if (!confirm('确定要删除这个群组吗？此操作不可恢复。')) return;
+    setFlash('正在删除...');
+    try {
+      const resp = await fetch('/api/hall/tasks/' + encodeURIComponent(taskId) + '/delete', { method: 'POST' });
+      const data = await resp.json();
+      if (data.ok) {
+        setFlash('群组已删除');
+        if (selectedTaskId === taskId) {
+          selectedTaskId = '';
+          selectedTaskCardId = '';
+          selectedTaskProjectId = '';
+        }
+        await loadHall();
+      } else {
+        setFlash('删除失败: ' + (data.error || '未知错误'));
+      }
+    } catch (e) {
+      setFlash('删除失败: ' + (e instanceof Error ? e.message : String(e)));
+    }
+    return false;
+  };
+  
   window.__openclawHallInsertMention = (mention) => insertMention(String(mention || ''));
   window.__openclawHallSetComposerValue = (value) => setComposerValue(String(value || ''));
   window.__openclawHallSendReply = (event) => {
