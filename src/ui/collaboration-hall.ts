@@ -3462,7 +3462,7 @@ function initialsForName(value: string): string {
 
 function renderHallPixelAvatar(label: string, className: string): string {
   const identity = resolveHallAvatarIdentity(label);
-  return `<div class="${escapeHtml(className)} hall-agent-avatar" style="--agent-accent:${escapeHtml(identity.accent)};" data-animal="${escapeHtml(identity.animal)}" aria-hidden="true"><div class="agent-stage"><canvas class="agent-pixel-canvas" width="128" height="128"></canvas></div></div>`;
+  return `<div class="${escapeHtml(className)} hall-agent-avatar" style="--agent-accent:${escapeHtml(identity.accent)};" data-animal="${escapeHtml(identity.animal)}" aria-hidden="true"><div class="agent-stage"><canvas class="agent-pixel-canvas" width="64" height="64"></canvas></div></div>`;
 }
 
 function resolveHallAvatarIdentity(input: string): { animal: string; accent: string; asset: string } {
