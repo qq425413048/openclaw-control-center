@@ -1450,7 +1450,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
       : '<div class="hall-order-empty">' + esc(textNoActionItems) + '</div>';
     const availableParticipants = (bootstrap.participants || []).filter((participant) => !activeQueue.includes(participant.participantId));
     const plannerIsEmpty = activeQueue.length === 0;
-    const plannerAvailableMarkup = '<div class="hall-order-available ' + (plannerIsEmpty ? 'hall-order-available--empty' : '') + '"><div class="hall-order-available-label">' + esc(textAvailableAgents) + '</div><div class="hall-order-chip-list">' +
+    const plannerAvailableMarkup = '<div class="hall-order-available ' + (plannerIsEmpty ? 'hall-order-available--empty' : '') + '"><div class="hall-order-available-label">' + esc(textAvailableAgents) + ' (' + availableParticipants.length + ')</div><div class="hall-order-search-box"><input type="text" id="hall-participant-search" placeholder="' + esc(pickUiText(language, "Filter participants...", "筛选参与者...")) + '" style="width:100%;margin-bottom:8px;padding:6px;border:1px solid #ddd;border-radius:4px;" /><div class="hall-order-chip-list" style="max-height:300px;overflow-y:auto;display:block;">'} +
       availableParticipants.map((participant) =>
         '<button type="button" class="hall-order-chip" data-hall-order-add="' + esc(participant.participantId) + '" title="' + esc(textAddToOrder) + '">' +
           hallAvatarMarkup(participant.displayName, 'hall-order-chip-avatar') +
@@ -2542,6 +2542,20 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
   textarea?.addEventListener('input', () => {
     autoResizeComposer();
   });
+  
+  // 参与者搜索过滤功能
+  const participantSearchInput = root.getElementById('hall-participant-search') as HTMLInputElement | null;
+  const participantChipList = root.querySelector('.hall-order-chip-list');
+  if (participantSearchInput && participantChipList) {
+    const allChips = Array.from(participantChipList.querySelectorAll('.hall-order-chip'));
+    participantSearchInput.addEventListener('input', (e) => {
+      const query = (e.target as HTMLInputElement).value.toLowerCase();
+      allChips.forEach((chip) => {
+        const text = chip.textContent?.toLowerCase() || chip.innerHTML.toLowerCase();
+        (chip as HTMLElement).style.display = text.includes(query) ? '' : 'none';
+      });
+    });
+  }
   root.querySelector('[data-hall-approve]')?.addEventListener('click', () => {
     void reviewTask('approved').catch((error) => setFlash(error instanceof Error ? error.message : String(error)));
   });
