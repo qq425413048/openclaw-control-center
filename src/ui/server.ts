@@ -6617,11 +6617,20 @@ async function renderHtml(
     .join("");
   const showSignalsFallback = signalItems.length === 0;
   const officeFloorHtml = renderOfficeFloor(officeCards, options.language);
-  const staffOverviewCards = needsTeamSnapshot
+  
+  // 员工概览只显示部分（分页显示，默认第一页10个）
+  const staffOverviewPage = options.staffPage || 1;
+  const staffOverviewPageSize = 10;
+  const staffOverviewStart = (staffOverviewPage - 1) * staffOverviewPageSize;
+  const staffOverviewEnd = staffOverviewStart + staffOverviewPageSize;
+  const staffOverviewMembers = teamSnapshot.members.slice(staffOverviewStart, staffOverviewEnd);
+  const staffOverviewTotalPages = Math.ceil(teamSnapshot.members.length / staffOverviewPageSize);
+  
+  const staffOverviewCards = needsTeamSnapshot && staffOverviewMembers.length > 0
     ? await buildStaffOverviewCards({
         snapshot,
         client: toolClient,
-        members: teamSnapshot.members,
+        members: staffOverviewMembers,
         officeCards,
         executionAgentSummaries,
         language: options.language,
@@ -7483,8 +7492,14 @@ async function renderHtml(
     <section class="card">
       <h2>${escapeHtml(t("Staff overview", "员工总览"))}</h2>
       <div class="meta">${escapeHtml(t("The default view shows only name, role, current status, current work, recent output, and whether each person is on the schedule.", "默认视图只显示员工名字、角色定位、当前状态、正在处理什么、最近产出，以及是否在排班里。"))}</div>
-      <div class="meta">${escapeHtml(t("Click on staff name to view more details.", "点击员工姓名查看详细信息。"))}</div>
+      <div class="meta">${escapeHtml(t("Click on staff name to view more details.", "点击员工姓名查看详细信息。"))} ${escapeHtml(t("Showing", "显示"))} ${staffOverviewStart + 1}-${Math.min(staffOverviewEnd, teamSnapshot.members.length)} ${escapeHtml(t("of", "共"))} ${teamSnapshot.members.length} ${escapeHtml(t("staff", "名员工"))}</div>
       ${staffOverviewCardsHtml}
+      ${staffOverviewTotalPages > 1 ? `
+      <div class="pagination" style="margin-top:16px;justify-content:center;">
+        ${staffOverviewPage > 1 ? `<a href="?section=${escapeHtml(options.section)}&lang=${escapeHtml(options.language)}&staffPage=${staffOverviewPage - 1}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}" class="btn">${escapeHtml(t("Previous", "上一页"))}</a>` : ""}
+        <span class="pagination-info">${escapeHtml(t("Page", "第"))} ${staffOverviewPage} ${escapeHtml(t("of", "共"))} ${staffOverviewTotalPages}</span>
+        ${staffOverviewPage < staffOverviewTotalPages ? `<a href="?section=${escapeHtml(options.section)}&lang=${escapeHtml(options.language)}&staffPage=${staffOverviewPage + 1}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}" class="btn">${escapeHtml(t("Next", "下一页"))}</a>` : ""}
+      </div>` : ""}
     </section>
     
     <section class="card">
