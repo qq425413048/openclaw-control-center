@@ -158,7 +158,7 @@ import {
 } from "../runtime/session-conversations";
 import { renderCollaborationHall, renderCollaborationHallClientScript } from "./collaboration-hall";
 import { renderTaskRoomClientScript, renderTaskRoomWorkbench, renderTaskRoomWorkbenchForSmoke } from "./task-room-workbench";
-import { loadBestEffortAgentRoster, type AgentRosterEntry, type AgentRosterSnapshot } from "../runtime/agent-roster";
+import { loadBestEffortAgentRoster, getDepartmentList, type AgentRosterEntry, type AgentRosterSnapshot } from "../runtime/agent-roster";
 import {
   loadBestEffortOfficeSessionPresence,
   type OfficeSessionPresenceSnapshot,
@@ -1546,6 +1546,86 @@ export function startUiServer(port: number, toolClient: ToolClient, options: Sta
         return writeJson(res, 200, {
           ok: true,
           usage,
+        });
+      }
+
+      // 获取员工列表（分页）
+      if (method === "GET" && path === "/api/roster") {
+        assertAllowedQueryParams(url.searchParams, ["page", "pageSize", "department", "search"], true);
+        const page = readPositiveIntQuery(url.searchParams.get("page"), "page", 1, true, 1000) || 1;
+        const pageSize = readPositiveIntQuery(url.searchParams.get("pageSize"), "pageSize", 10, true, 100) || 10;
+        const department = normalizeQueryString(url.searchParams.get("department"), "department", 32, true);
+        const search = normalizeQueryString(url.searchParams.get("search"), "search", 64, true);
+
+        const roster = await loadBestEffortAgentRoster();
+        let entries = roster.entries;
+
+        // 按部门过滤
+        if (department) {
+          entries = entries.filter(e => e.department === department);
+        }
+
+        // 按搜索词过滤
+        if (search) {
+          const searchLower = search.toLowerCase();
+          entries = entries.filter(e =>
+            e.agentId.toLowerCase().includes(searchLower) ||
+            e.displayName.toLowerCase().includes(searchLower) ||
+            (e.description && e.description.toLowerCase().includes(searchLower))
+          );
+        }
+
+        const total = entries.length;
+        const totalPages = Math.ceil(total / pageSize);
+        const start = (page - 1) * pageSize;
+        const end = start + pageSize;
+        const pagedEntries = entries.slice(start, end);
+
+        return writeJson(res, 200, {
+          ok: true,
+          page,
+          pageSize,
+          total,
+          totalPages,
+          entries: pagedEntries,
+        });
+      }
+
+      // 获取部门列表
+      if (method === "GET" && path === "/api/departments") {
+        assertAllowedQueryParams(url.searchParams, [], true);
+        const departments = await getDepartmentList();
+        return writeJson(res, 200, {
+          ok: true,
+          departments,
+        });
+      }
+
+      // 新增员工
+      if (method === "POST" && path === "/api/roster") {
+        assertMutationAuthorized(req, "/api/roster");
+        assertJsonContentType(req);
+        const payload = expectObject(await readJsonBody(req), "roster payload");
+        const agentId = boundedTextField(payload.agentId, "agentId", 64);
+        const displayName = boundedTextField(payload.displayName, "displayName", 64);
+        const description = optionalBoundedString(payload.description, "description", 500);
+        const department = optionalBoundedString(payload.department, "department", 32);
+
+        // 保存到 agency-agents 目录
+        const agencyAgentsPath = join(OPENCLAW_HOME_DIR, "agency-agents", agentId);
+        await mkdir(agencyAgentsPath, { recursive: true });
+
+        // 写入 IDENTITY.md
+        const identityContent = description
+          ? `# ${displayName}\n${description}`
+          : `# ${displayName}`;
+        await writeFile(join(agencyAgentsPath, "IDENTITY.md"), identityContent, "utf-8");
+
+        return writeJson(res, 201, {
+          ok: true,
+          agentId,
+          displayName,
+          message: "员工创建成功",
         });
       }
 
