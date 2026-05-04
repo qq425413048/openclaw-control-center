@@ -6622,18 +6622,19 @@ async function renderHtml(
   // 员工概览只显示部分（分页显示，默认第一页10个），同时应用部门和搜索筛选
   const staffOverviewPage = options.staffPage || 1;
   const staffOverviewPageSize = 10;
-  // 应用部门和搜索筛选
+  // 部门和搜索是独立的：优先用搜索，搜索为空时用部门筛选
   let staffOverviewFiltered = teamSnapshot.members;
-  if (options.staffDepartment) {
-    staffOverviewFiltered = staffOverviewFiltered.filter(m => m.department === options.staffDepartment);
-  }
   if (options.staffSearch) {
+    // 搜索模式：搜索所有部门
     const searchLower = options.staffSearch.toLowerCase();
     staffOverviewFiltered = staffOverviewFiltered.filter(m => 
       m.agentId.toLowerCase().includes(searchLower) ||
       m.displayName.toLowerCase().includes(searchLower) ||
       (m.customNote && m.customNote.toLowerCase().includes(searchLower))
     );
+  } else if (options.staffDepartment) {
+    // 部门模式：只看选中的部门
+    staffOverviewFiltered = staffOverviewFiltered.filter(m => m.department === options.staffDepartment);
   }
   const staffOverviewStart = (staffOverviewPage - 1) * staffOverviewPageSize;
   const staffOverviewEnd = staffOverviewStart + staffOverviewPageSize;
@@ -7520,14 +7521,19 @@ async function renderHtml(
       <h2>${escapeHtml(t("Departments", "部门导航"))}</h2>
       <div class="meta">${escapeHtml(t("Click to filter by department", "点击部门筛选员工"))}</div>
       <div class="quick-filters">
-        <a href="?section=${escapeHtml(options.section)}&staffPage=1&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}${options.staffSearch ? "&search="+encodeURIComponent(options.staffSearch) : ""}" class="quick-filter ${!options.staffDepartment ? "active" : ""}">
+        <a href="?section=${escapeHtml(options.section)}&staffPage=1&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}" class="quick-filter ${!options.staffDepartment && !options.staffSearch ? "active" : ""}">
           ${escapeHtml(t("All", "全部"))} (${teamSnapshot.members.length})
         </a>
         ${departments.map(dept => 
-          `<a href="?section=${escapeHtml(options.section)}&staffPage=1&department=${escapeHtml(dept.id)}&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}${options.staffSearch ? "&search="+encodeURIComponent(options.staffSearch) : ""}" class="quick-filter ${options.staffDepartment === dept.id ? "active" : ""}">
+          // 点击部门时清除搜索，使部门和搜索独立
+          `<a href="?section=${escapeHtml(options.section)}&staffPage=1&department=${escapeHtml(dept.id)}&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}" class="quick-filter ${options.staffDepartment === dept.id && !options.staffSearch ? "active" : ""}">
             ${escapeHtml(dept.name)} (${dept.count})
           </a>`
         ).join("")}
+        ${options.staffSearch ? `
+        <a href="?section=${escapeHtml(options.section)}&staffPage=1&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}" class="quick-filter active">
+          🔍 ${escapeHtml(t("Search results", "搜索结果"))} (${staffOverviewFiltered.length})
+        </a>` : ''}
       </div>
     </section>
     
