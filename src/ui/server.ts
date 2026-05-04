@@ -24,6 +24,7 @@ import { BUDGET_POLICY_PATH, loadBudgetPolicy } from "../runtime/budget-policy";
 import { commanderExceptions, commanderExceptionsFeed } from "../runtime/commander";
 import { buildCronOverview } from "../runtime/cron-overview";
 import { buildDoneChecklist } from "../runtime/done-checklist";
+import { GROUP_TEMPLATES, DEPARTMENTS } from "../runtime/group-templates";
 import {
   filterAuditTimeline,
   loadAuditTimeline,
@@ -1900,6 +1901,15 @@ export function startUiServer(port: number, toolClient: ToolClient, options: Sta
           projectId: payload.projectId,
         });
         return writeJson(res, 200, { ok: true, ...updated });
+      }
+
+      // 群组模板API
+      if (method === "GET" && path === "/api/hall/templates") {
+        return writeJson(res, 200, {
+          ok: true,
+          templates: GROUP_TEMPLATES,
+          departments: DEPARTMENTS
+        });
       }
 
       if (method === "GET" && path === "/api/hall") {
