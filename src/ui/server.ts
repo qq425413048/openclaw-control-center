@@ -6619,13 +6619,21 @@ async function renderHtml(
   const showSignalsFallback = signalItems.length === 0;
   const officeFloorHtml = renderOfficeFloor(officeCards, options.language);
   
-  // 员工概览只显示部分（分页显示，默认第一页10个），同时应用部门筛选
+  // 员工概览只显示部分（分页显示，默认第一页10个），同时应用部门和搜索筛选
   const staffOverviewPage = options.staffPage || 1;
   const staffOverviewPageSize = 10;
-  // 应用部门筛选
+  // 应用部门和搜索筛选
   let staffOverviewFiltered = teamSnapshot.members;
   if (options.staffDepartment) {
-    staffOverviewFiltered = teamSnapshot.members.filter(m => m.department === options.staffDepartment);
+    staffOverviewFiltered = staffOverviewFiltered.filter(m => m.department === options.staffDepartment);
+  }
+  if (options.staffSearch) {
+    const searchLower = options.staffSearch.toLowerCase();
+    staffOverviewFiltered = staffOverviewFiltered.filter(m => 
+      m.agentId.toLowerCase().includes(searchLower) ||
+      m.displayName.toLowerCase().includes(searchLower) ||
+      (m.customNote && m.customNote.toLowerCase().includes(searchLower))
+    );
   }
   const staffOverviewStart = (staffOverviewPage - 1) * staffOverviewPageSize;
   const staffOverviewEnd = staffOverviewStart + staffOverviewPageSize;
@@ -7510,18 +7518,16 @@ async function renderHtml(
     
     <section class="card">
       <h2>${escapeHtml(t("Departments", "部门导航"))}</h2>
-      <div class="meta">${escapeHtml(t("Navigate staff by department. Departments are mapped from agency-agents-zh project structure.", "按部门导航员工。部门映射来自 agency-agents-zh 项目结构。"))}</div>
-      <div class="department-tags">
+      <div class="meta">${escapeHtml(t("Click to filter by department", "点击部门筛选员工"))}</div>
+      <div class="quick-filters">
+        <a href="?section=${escapeHtml(options.section)}&staffPage=1&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}${options.staffSearch ? "&search="+encodeURIComponent(options.staffSearch) : ""}" class="quick-filter ${!options.staffDepartment ? "active" : ""}">
+          ${escapeHtml(t("All", "全部"))} (${teamSnapshot.members.length})
+        </a>
         ${departments.map(dept => 
-          `<a href="?section=${escapeHtml(options.section)}&staffPage=1&department=${escapeHtml(dept.id)}&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}" class="department-tag ${options.staffDepartment === dept.id ? "active" : ""}">
-            ${escapeHtml(dept.name)}
-            <span class="department-count">${dept.count}</span>
+          `<a href="?section=${escapeHtml(options.section)}&staffPage=1&department=${escapeHtml(dept.id)}&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}${options.staffSearch ? "&search="+encodeURIComponent(options.staffSearch) : ""}" class="quick-filter ${options.staffDepartment === dept.id ? "active" : ""}">
+            ${escapeHtml(dept.name)} (${dept.count})
           </a>`
         ).join("")}
-        <a href="?section=${escapeHtml(options.section)}&staffPage=1&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}" class="department-tag ${!options.staffDepartment ? "active" : ""}">
-          ${escapeHtml(t("All departments", "所有部门"))}
-          <span class="department-count">${totalMembers}</span>
-        </a>
       </div>
     </section>
     
