@@ -823,6 +823,7 @@ interface ExecutionAgentSummary {
 interface StaffOverviewCard {
   agentId: string;
   displayName: string;
+  department?: string;
   identity: AgentAnimalIdentity;
   roleLabel: string;
   statusLabel: string;
@@ -1144,8 +1145,8 @@ export function startUiServer(port: number, toolClient: ToolClient, options: Sta
           selectedTaskCardId,
           staffPage: url.searchParams.get("staffPage") ? parseInt(url.searchParams.get("staffPage")!, 10) : 1,
           staffPageSize: url.searchParams.get("staffPageSize") ? parseInt(url.searchParams.get("staffPageSize")!, 10) : 10,
-          staffSearch: url.searchParams.get("staffSearch") || undefined,
-          staffDepartment: url.searchParams.get("staffDepartment") || undefined,
+          staffSearch: url.searchParams.get("search") || url.searchParams.get("staffSearch") || undefined,
+          staffDepartment: url.searchParams.get("department") || url.searchParams.get("staffDepartment") || undefined,
         });
         return writeText(res, 200, html, "text/html; charset=utf-8");
       }
@@ -6618,13 +6619,18 @@ async function renderHtml(
   const showSignalsFallback = signalItems.length === 0;
   const officeFloorHtml = renderOfficeFloor(officeCards, options.language);
   
-  // 员工概览只显示部分（分页显示，默认第一页10个）
+  // 员工概览只显示部分（分页显示，默认第一页10个），同时应用部门筛选
   const staffOverviewPage = options.staffPage || 1;
   const staffOverviewPageSize = 10;
+  // 应用部门筛选
+  let staffOverviewFiltered = teamSnapshot.members;
+  if (options.staffDepartment) {
+    staffOverviewFiltered = teamSnapshot.members.filter(m => m.department === options.staffDepartment);
+  }
   const staffOverviewStart = (staffOverviewPage - 1) * staffOverviewPageSize;
   const staffOverviewEnd = staffOverviewStart + staffOverviewPageSize;
-  const staffOverviewMembers = teamSnapshot.members.slice(staffOverviewStart, staffOverviewEnd);
-  const staffOverviewTotalPages = Math.ceil(teamSnapshot.members.length / staffOverviewPageSize);
+  const staffOverviewMembers = staffOverviewFiltered.slice(staffOverviewStart, staffOverviewEnd);
+  const staffOverviewTotalPages = Math.ceil(staffOverviewFiltered.length / staffOverviewPageSize);
   
   const staffOverviewCards = needsTeamSnapshot && staffOverviewMembers.length > 0
     ? await buildStaffOverviewCards({
@@ -7492,7 +7498,7 @@ async function renderHtml(
     <section class="card">
       <h2>${escapeHtml(t("Staff overview", "员工总览"))}</h2>
       <div class="meta">${escapeHtml(t("The default view shows only name, role, current status, current work, recent output, and whether each person is on the schedule.", "默认视图只显示员工名字、角色定位、当前状态、正在处理什么、最近产出，以及是否在排班里。"))}</div>
-      <div class="meta">${escapeHtml(t("Click on staff name to view more details.", "点击员工姓名查看详细信息。"))} ${escapeHtml(t("Showing", "显示"))} ${staffOverviewStart + 1}-${Math.min(staffOverviewEnd, teamSnapshot.members.length)} ${escapeHtml(t("of", "共"))} ${teamSnapshot.members.length} ${escapeHtml(t("staff", "名员工"))}</div>
+      <div class="meta">${escapeHtml(t("Click on staff name to view more details.", "点击员工姓名查看详细信息。"))} ${escapeHtml(t("Showing", "显示"))} ${staffOverviewStart + 1}-${Math.min(staffOverviewEnd, staffOverviewFiltered.length)} ${escapeHtml(t("of", "共"))} ${staffOverviewFiltered.length} ${escapeHtml(t("staff", "名员工"))}${options.staffDepartment ? ` (${escapeHtml(t("Filtered", "部门筛选"))})` : ''}</div>
       ${staffOverviewCardsHtml}
       ${staffOverviewTotalPages > 1 ? `
       <div class="pagination" style="margin-top:16px;justify-content:center;">
@@ -7507,12 +7513,12 @@ async function renderHtml(
       <div class="meta">${escapeHtml(t("Navigate staff by department. Departments are mapped from agency-agents-zh project structure.", "按部门导航员工。部门映射来自 agency-agents-zh 项目结构。"))}</div>
       <div class="department-tags">
         ${departments.map(dept => 
-          `<a href="?section=${escapeHtml(options.section)}&department=${escapeHtml(dept.id)}&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}" class="department-tag">
+          `<a href="?section=${escapeHtml(options.section)}&staffPage=1&department=${escapeHtml(dept.id)}&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}" class="department-tag ${options.staffDepartment === dept.id ? "active" : ""}">
             ${escapeHtml(dept.name)}
             <span class="department-count">${dept.count}</span>
           </a>`
         ).join("")}
-        <a href="?section=${escapeHtml(options.section)}&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}" class="department-tag">
+        <a href="?section=${escapeHtml(options.section)}&staffPage=1&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}" class="department-tag ${!options.staffDepartment ? "active" : ""}">
           ${escapeHtml(t("All departments", "所有部门"))}
           <span class="department-count">${totalMembers}</span>
         </a>
@@ -13321,6 +13327,12 @@ async function loadTeamSnapshot(officeRoster: AgentRosterSnapshot, snapshot: Rea
           (typeof tools.profile === "string" && tools.profile.trim()) || "default",
       });
     }
+    // 从 officeRoster 获取部门信息
+    const deptByAgentId = new Map(officeRoster.entries.map(e => [e.agentId, e.department]));
+    for (const member of members) {
+      member.department = deptByAgentId.get(member.agentId);
+    }
+    
     return {
       missionStatement,
       members: members.sort((a, b) => a.agentId.localeCompare(b.agentId, "zh-Hans-CN")),
@@ -13339,6 +13351,7 @@ async function loadTeamSnapshot(officeRoster: AgentRosterSnapshot, snapshot: Rea
         customNote: undefined,
         workspace: "未标注",
         toolsProfile: "default",
+        department: entry.department,
       })),
       sourcePath,
       detail: "openclaw.json 解析失败，已回退为运行时员工名录。",
@@ -14184,6 +14197,7 @@ export async function buildStaffOverviewCards(input: {
         customNote: undefined,
         workspace: "unlisted",
         toolsProfile: "default",
+        department: undefined,
       }));
   const recentActivityByKey = await loadCachedStaffRecentActivity(
     input.snapshot,
@@ -14214,6 +14228,7 @@ export async function buildStaffOverviewCards(input: {
     return {
       agentId: member.agentId,
       displayName: member.displayName,
+      department: member.department,
       identity,
       roleLabel,
       statusLabel: staffStatusLabel(effectiveOfficeStatus, input.language),
@@ -14257,11 +14272,21 @@ function renderStaffOverviewCards(
           </svg>
         </button>
       </div>`;
+      const deptNames: Record<string, string> = {
+        "academic": "学术部", "design": "设计部", "engineering": "工程部",
+        "finance": "金融部", "game-development": "游戏开发部", "hr": "人力资源部",
+        "legal": "法务部", "marketing": "营销部", "paid-media": "付费媒体部",
+        "product": "产品部", "project-management": "项目管理部", "sales": "销售部",
+        "specialized": "专项部", "spatial-computing": "空间计算部", "supply-chain": "供应链部",
+        "support": "支持部", "testing": "测试部"
+      };
+      const deptLabel = card.department ? (deptNames[card.department] || card.department) : '';
       return `<article class="staff-brief-card">
         <div class="staff-brief-head">
           ${avatar}
           <div class="staff-brief-identity">
             <h3>${escapeHtml(card.displayName)}</h3>
+            ${deptLabel ? `<div class="staff-dept">${escapeHtml(deptLabel)}</div>` : ''}
             <div class="staff-role">${escapeHtml(card.roleLabel)}</div>
           </div>
         </div>
