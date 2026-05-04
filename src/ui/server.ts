@@ -485,6 +485,11 @@ interface DashboardOptions {
   search: DashboardSearchQuery;
   selectedRoomId?: string;
   selectedTaskCardId?: string;
+  // 员工分页和筛选参数
+  staffPage?: number;
+  staffPageSize?: number;
+  staffSearch?: string;
+  staffDepartment?: string;
 }
 
 interface DashboardSectionLink {
@@ -510,6 +515,7 @@ interface TeamMemberSnapshot {
   customNote?: string;
   workspace: string;
   toolsProfile: string;
+  department?: string;
 }
 
 interface TeamSnapshot {
@@ -1136,6 +1142,10 @@ export function startUiServer(port: number, toolClient: ToolClient, options: Sta
           search,
           selectedRoomId,
           selectedTaskCardId,
+          staffPage: url.searchParams.get("staffPage") ? parseInt(url.searchParams.get("staffPage")!, 10) : 1,
+          staffPageSize: url.searchParams.get("staffPageSize") ? parseInt(url.searchParams.get("staffPageSize")!, 10) : 10,
+          staffSearch: url.searchParams.get("staffSearch") || undefined,
+          staffDepartment: url.searchParams.get("staffDepartment") || undefined,
         });
         return writeText(res, 200, html, "text/html; charset=utf-8");
       }
@@ -7329,19 +7339,139 @@ async function renderHtml(
       ${taskExecutionChainHtml}
     </section>
   `;
+  // 处理员工列表的查询参数
+  const searchQuery = options.staffSearch || "";
+  const pageParam = String(options.staffPage || 1);
+  const pageSizeParam = String(options.staffPageSize || 10);
+  const departmentParam = options.staffDepartment;
+  
+  const page = pageParam ? Number.parseInt(pageParam, 10) : 1;
+  const pageSize = pageSizeParam ? Number.parseInt(pageSizeParam, 10) : 10;
+  
+  // 获取部门列表用于筛选项
+  const departments = await getDepartmentList();
+  
+  // 过滤和排序员工
+  let filteredMembers = teamSnapshot.members;
+  
+  // 按部门过滤
+  if (departmentParam && departmentParam !== "all") {
+    filteredMembers = filteredMembers.filter(member => member.department === departmentParam);
+  }
+  
+  // 按搜索词过滤
+  if (searchQuery) {
+    const searchLower = searchQuery.toLowerCase();
+    filteredMembers = filteredMembers.filter(member => 
+      member.agentId.toLowerCase().includes(searchLower) ||
+      member.displayName.toLowerCase().includes(searchLower) ||
+      (member.customNote && member.customNote.toLowerCase().includes(searchLower))
+    );
+  }
+  
+  // 分页计算
+  const totalMembers = filteredMembers.length;
+  const totalPages = Math.ceil(totalMembers / pageSize);
+  const startIndex = (page - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const pageMembers = filteredMembers.slice(startIndex, endIndex);
+  
+  // 生成分页链接
+  const buildPageLink = (newPage: number) => {
+    const params = new URLSearchParams();
+    params.set("section", options.section);
+    params.set("lang", options.language);
+    params.set("compact", options.compactStatusStrip ? "1" : "0");
+    params.set("usage_view", options.usageView === "today" ? "today" : "cumulative");
+    params.set("staffPage", String(newPage));
+    if (options.staffPageSize) params.set("staffPageSize", String(options.staffPageSize));
+    if (options.staffSearch) params.set("staffSearch", options.staffSearch);
+    if (options.staffDepartment) params.set("staffDepartment", options.staffDepartment);
+    return `?${params.toString()}`;
+  };
+  
   const teamMembersTableRows =
-    teamSnapshot.members.length === 0
-      ? `<tr><td colspan="7">${escapeHtml(t("No staff found.", "暂无员工。"))}</td></tr>`
-      : teamSnapshot.members
+    pageMembers.length === 0
+      ? `<tr><td colspan="8">${escapeHtml(t("No staff found matching criteria.", "没有找到符合条件的员工。"))}</td></tr>`
+      : pageMembers
           .map(
             (member) =>
-              `<tr><td>${escapeHtml(member.displayName)}</td><td><code>${escapeHtml(member.agentId)}</code></td><td>${escapeHtml(member.configuredModel)}</td><td>${escapeHtml(member.currentModel)}${
+              `<tr><td>${escapeHtml(member.displayName)}</td><td><code>${escapeHtml(member.agentId)}</code></td><td>${escapeHtml(member.department || t("Uncategorized", "未分类"))}</td><td>${escapeHtml(member.configuredModel)}</td><td>${escapeHtml(member.currentModel)}${
                 member.currentModelUpdatedAt
                   ? `<div class="meta">${escapeHtml(t("Updated", "更新"))} ${escapeHtml(formatUiTimestamp(member.currentModelUpdatedAt, options.language))}</div>`
                   : `<div class="meta">${escapeHtml(t("No runtime model observed yet.", "尚未观察到运行时模型。"))}</div>`
               }</td><td>${escapeHtml(member.customNote ?? t("Not provided", "未提供"))}</td><td>${escapeHtml(member.toolsProfile)}</td><td>${escapeHtml(member.workspace)}</td></tr>`,
           )
           .join("");
+          
+  // 生成搜索和分页表单
+  const searchForm = `
+  <details class="card compact-details" open>
+    <summary>${escapeHtml(t("Staff search and filters", "员工搜索与筛选"))}</summary>
+    <div class="fold-body">
+      <form method="GET" action="/" class="filters">
+        <input type="hidden" name="section" value="${escapeHtml(options.section)}" />
+        <input type="hidden" name="lang" value="${escapeHtml(options.language)}" />
+        <input type="hidden" name="compact" value="${options.compactStatusStrip ? "1" : "0"}" />
+        <input type="hidden" name="usage_view" value="${options.usageView === "today" ? "today" : "cumulative"}" />
+        
+        <div class="filter-row">
+          <div>
+            <label for="search">${escapeHtml(t("Search", "搜索"))}</label>
+            <input type="text" id="search" name="search" value="${escapeHtml(searchQuery)}" placeholder="${escapeHtml(t("Search by name or ID", "按名称或ID搜索"))}" />
+          </div>
+          
+          <div>
+            <label for="department">${escapeHtml(t("Department", "部门"))}</label>
+            <select id="department" name="department">
+              <option value="all" ${departmentParam === "all" || !departmentParam ? "selected" : ""}>${escapeHtml(t("All departments", "所有部门"))}</option>
+              ${departments.map(dept => 
+                `<option value="${escapeHtml(dept.id)}" ${departmentParam === dept.id ? "selected" : ""}>${escapeHtml(dept.name)} (${dept.count})</option>`
+              ).join("")}
+            </select>
+          </div>
+        </div>
+        
+        <div class="filter-row">
+          <div>
+            <label for="pageSize">${escapeHtml(t("Page size", "每页条数"))}</label>
+            <select id="pageSize" name="pageSize">
+              <option value="10" ${pageSize === 10 ? "selected" : ""}>10</option>
+              <option value="25" ${pageSize === 25 ? "selected" : ""}>25</option>
+              <option value="50" ${pageSize === 50 ? "selected" : ""}>50</option>
+              <option value="100" ${pageSize === 100 ? "selected" : ""}>100</option>
+            </select>
+          </div>
+          
+          <div class="filter-actions">
+            <button class="btn" type="submit">${escapeHtml(t("Apply filters", "应用筛选"))}</button>
+            <a href="?section=${escapeHtml(options.section)}&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}">${escapeHtml(t("Clear all", "清空所有"))}</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </details>
+  `;
+  
+  // 生成分页控件
+  const pagination = totalPages > 1 ? `
+    <div class="pagination">
+      <div class="pagination-info">
+        ${escapeHtml(t("Page", "第"))} ${page} ${escapeHtml(t("of", "共"))} ${totalPages} · ${totalMembers} ${escapeHtml(t("staff members", "名员工"))}
+      </div>
+      <div class="pagination-controls">
+        ${page > 1 ? `<a href="${buildPageLink(1)}" class="btn ${page === 1 ? "disabled" : ""}">${escapeHtml(t("First", "首页"))}</a>` : ""}
+        ${page > 1 ? `<a href="${buildPageLink(page - 1)}" class="btn">${escapeHtml(t("Previous", "上一页"))}</a>` : ""}
+        ${Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+          const pg = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+          if (pg < 1 || pg > totalPages) return "";
+          return `<a href="${buildPageLink(pg)}" class="btn ${pg === page ? "active" : ""}">${pg}</a>`;
+        }).join("")}
+        ${page < totalPages ? `<a href="${buildPageLink(page + 1)}" class="btn">${escapeHtml(t("Next", "下一页"))}</a>` : ""}
+        ${page < totalPages ? `<a href="${buildPageLink(totalPages)}" class="btn ${page === totalPages ? "disabled" : ""}">${escapeHtml(t("Last", "末页"))}</a>` : ""}
+      </div>
+    </div>
+  ` : "";
   const staffSessionHistoryHtml = renderStaffSessionHistory({
     members: teamSnapshot.members,
     sessions: snapshot.sessions,
@@ -7353,8 +7483,108 @@ async function renderHtml(
     <section class="card">
       <h2>${escapeHtml(t("Staff overview", "员工总览"))}</h2>
       <div class="meta">${escapeHtml(t("The default view shows only name, role, current status, current work, recent output, and whether each person is on the schedule.", "默认视图只显示员工名字、角色定位、当前状态、正在处理什么、最近产出，以及是否在排班里。"))}</div>
+      <div class="meta">${escapeHtml(t("Click on staff name to view more details.", "点击员工姓名查看详细信息。"))}</div>
       ${staffOverviewCardsHtml}
     </section>
+    
+    <section class="card">
+      <h2>${escapeHtml(t("Departments", "部门导航"))}</h2>
+      <div class="meta">${escapeHtml(t("Navigate staff by department. Departments are mapped from agency-agents-zh project structure.", "按部门导航员工。部门映射来自 agency-agents-zh 项目结构。"))}</div>
+      <div class="department-tags">
+        ${departments.map(dept => 
+          `<a href="?section=${escapeHtml(options.section)}&department=${escapeHtml(dept.id)}&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}" class="department-tag">
+            ${escapeHtml(dept.name)}
+            <span class="department-count">${dept.count}</span>
+          </a>`
+        ).join("")}
+        <a href="?section=${escapeHtml(options.section)}&lang=${escapeHtml(options.language)}${options.compactStatusStrip ? "&compact=1" : ""}${options.usageView === "today" ? "&usage_view=today" : ""}" class="department-tag">
+          ${escapeHtml(t("All departments", "所有部门"))}
+          <span class="department-count">${totalMembers}</span>
+        </a>
+      </div>
+    </section>
+    
+    <details class="card compact-details">
+      <summary>${escapeHtml(t("Add new staff member", "添加新员工"))}</summary>
+      <div class="fold-body">
+        <div class="meta">${escapeHtml(t("Add a new staff member to your agency. The new agent will be created in your agency-agents directory.", "向您的机构添加新员工。新智能体将在 agency-agents 目录中创建。"))}</div>
+        <form id="add-staff-form" class="staff-form">
+          <div class="form-row">
+            <label for="new-agentId">${escapeHtml(t("Agent ID", "智能体ID"))}</label>
+            <input type="text" id="new-agentId" required pattern="[a-zA-Z0-9-]+" title="${escapeHtml(t("Only letters, numbers and hyphens allowed", "仅允许字母、数字和连字符"))}" />
+            <div class="form-hint">${escapeHtml(t("Unique identifier (e.g., 'ui-ux-designer')", "唯一标识符 (例如：'ui-ux-designer')"))}</div>
+          </div>
+          
+          <div class="form-row">
+            <label for="new-displayName">${escapeHtml(t("Display Name", "显示名称"))}</label>
+            <input type="text" id="new-displayName" required />
+            <div class="form-hint">${escapeHtml(t("Chinese name shown in roster", "花名册中显示的中文名"))}</div>
+          </div>
+          
+          <div class="form-row">
+            <label for="new-description">${escapeHtml(t("Description/Role", "描述/职责"))}</label>
+            <textarea id="new-description" rows="3"></textarea>
+            <div class="form-hint">${escapeHtml(t("Role description (second line in IDENTITY.md)", "角色描述 (IDENTITY.md 第二行)"))}</div>
+          </div>
+          
+          <div class="form-row">
+            <label for="new-department">${escapeHtml(t("Department", "部门"))}</label>
+            <select id="new-department">
+              ${departments.map(dept => 
+                `<option value="${escapeHtml(dept.id)}">${escapeHtml(dept.name)}</option>`
+              ).join("")}
+              <option value="other">${escapeHtml(t("Other", "其他"))}</option>
+            </select>
+          </div>
+          
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">${escapeHtml(t("Add Staff", "添加员工"))}</button>
+            <button type="reset" class="btn btn-secondary">${escapeHtml(t("Reset", "重置"))}</button>
+          </div>
+        </form>
+        <div id="add-staff-result" class="result-message"></div>
+        <script>
+          document.getElementById('add-staff-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const resultEl = document.getElementById('add-staff-result');
+            resultEl.innerHTML = '<div class="info">${escapeHtml(t("Creating staff member...", "正在创建员工..."))}</div>';
+            
+            try {
+              const response = await fetch('/api/roster', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  agentId: document.getElementById('new-agentId').value,
+                  displayName: document.getElementById('new-displayName').value,
+                  description: document.getElementById('new-description').value.trim() || undefined,
+                  department: document.getElementById('new-department').value === 'other' ? undefined : document.getElementById('new-department').value,
+                }),
+              });
+              
+              const data = await response.json();
+              if (data.ok) {
+                resultEl.innerHTML = '<div class="success">${escapeHtml(t("Staff added successfully! Please refresh the page to see the new staff member.", "员工添加成功！请刷新页面查看新员工。"))}</div>';
+                form.reset();
+              } else {
+                resultEl.innerHTML = '<div class="error">' + escapeHtml(data.error?.message || '${escapeHtml(t("Failed to add staff", "添加员工失败"))}') + '</div>';
+              }
+            } catch (error) {
+              resultEl.innerHTML = '<div class="error">' + escapeHtml(error.message || '${escapeHtml(t("Network error", "网络错误"))}') + '</div>';
+            }
+          });
+          
+          // Simple escape function for basic HTML escaping
+          function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+          }
+        </script>
+      </div>
+    </details>
     <details class="card compact-details">
       <summary>${escapeHtml(t("Shared staff mission", "员工共同目标"))}</summary>
       <div class="fold-body">
@@ -7363,15 +7593,19 @@ async function renderHtml(
         <div class="meta">${escapeHtml(teamSnapshot.detail)}</div>
       </div>
     </details>
+${searchForm}
+    
     <details class="card compact-details">
       <summary>${escapeHtml(t("Staff system details", "员工配置明细"))}</summary>
       <div class="fold-body">
         <div class="meta">${escapeHtml(t("Configured model comes from openclaw.json or its defaults. Current model comes from the latest runtime session signal we can observe.", "配置模型来自 openclaw.json 或其默认值；当前运行模型来自当前能观察到的最新运行时会话信号。"))}</div>
-        <div class="meta">${escapeHtml(t("Display name can come from name / displayName / alias. Custom note can come from description / role / mission / note.", "展示名称可来自 name / displayName / alias；自定义说明可来自 description / role / mission / note。"))}</div>
+        <div class="meta">${escapeHtml(t("Display name can come from name / displayName / alias / IDENTITY.md. Custom note can come from description / role / mission / note / IDENTITY.md.", "展示名称可来自 name / displayName / alias / IDENTITY.md；自定义说明可来自 description / role / mission / note / IDENTITY.md。"))}</div>
+        ${pagination}
         <table>
-          <thead><tr><th>${escapeHtml(t("Name", "名称"))}</th><th>agentId</th><th>${escapeHtml(t("Configured model", "配置模型"))}</th><th>${escapeHtml(t("Current model", "当前运行模型"))}</th><th>${escapeHtml(t("Custom note", "自定义说明"))}</th><th>${escapeHtml(t("Tool profile", "工具权限"))}</th><th>${escapeHtml(t("Workspace", "工作目录"))}</th></tr></thead>
+          <thead><tr><th>${escapeHtml(t("Name", "名称"))}</th><th>agentId</th><th>${escapeHtml(t("Department", "部门"))}</th><th>${escapeHtml(t("Configured model", "配置模型"))}</th><th>${escapeHtml(t("Current model", "当前运行模型"))}</th><th>${escapeHtml(t("Custom note", "自定义说明"))}</th><th>${escapeHtml(t("Tool profile", "工具权限"))}</th><th>${escapeHtml(t("Workspace", "工作目录"))}</th></tr></thead>
           <tbody>${teamMembersTableRows}</tbody>
         </table>
+        ${pagination}
       </div>
     </details>
     <details class="card compact-details">
