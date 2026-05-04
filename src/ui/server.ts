@@ -13333,10 +13333,15 @@ async function loadTeamSnapshot(officeRoster: AgentRosterSnapshot, snapshot: Rea
           (typeof tools.profile === "string" && tools.profile.trim()) || "default",
       });
     }
-    // 从 officeRoster 获取部门信息
-    const deptByAgentId = new Map(officeRoster.entries.map(e => [e.agentId, e.department]));
+    // 从 officeRoster 获取部门和描述信息
+    const infoByAgentId = new Map(officeRoster.entries.map(e => [e.agentId, {department: e.department, description: e.description}]));
     for (const member of members) {
-      member.department = deptByAgentId.get(member.agentId);
+      const info = infoByAgentId.get(member.agentId);
+      member.department = info?.department;
+      // 如果没有 customNote，用 IDENTITY.md 的描述
+      if (!member.customNote && info?.description) {
+        member.customNote = info.description;
+      }
     }
     
     return {
