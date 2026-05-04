@@ -128,7 +128,10 @@ export function renderCollaborationHall(input: RenderCollaborationHallInput): st
                 <h3>${escapeHtml(t("Threads", "线程"))}</h3>
                 <div class="meta">${escapeHtml(t("Each task lives like a chat thread.", "每个任务都像一个聊天线程。"))}</div>
               </div>
-              <button type="button" class="hall-secondary-button hall-secondary-button--compact" data-hall-compose-task aria-pressed="false" onclick="return window.__openclawHallOpenNewTaskComposer ? window.__openclawHallOpenNewTaskComposer() : true">${escapeHtml(t("New task", "新任务"))}</button>
+              <div class="hall-pane-head-actions">
+                <button type="button" class="hall-secondary-button hall-secondary-button--compact hall-button--primary" data-hall-new-group onclick="window.__openclawHallNewGroup && window.__openclawHallNewGroup()">${escapeHtml(t("+ New Group", "+ 新建群组"))}</button>
+                <button type="button" class="hall-secondary-button hall-secondary-button--compact" data-hall-compose-task aria-pressed="false" onclick="return window.__openclawHallOpenNewTaskComposer ? window.__openclawHallOpenNewTaskComposer() : true">${escapeHtml(t("New task", "新任务"))}</button>
+              </div>
             </div>
             <div class="hall-task-list" data-hall-task-list>${renderTaskCards(input.taskCards, input.selectedTaskCard?.taskCardId, input.language)}</div>
           </aside>
@@ -205,6 +208,45 @@ export function renderCollaborationHall(input: RenderCollaborationHallInput): st
         </div>
       </div>
       <script type="application/json" id="collaboration-hall-bootstrap">${safeJsonForScript(bootstrap)}</script>
+      
+      <!-- 新建群组模态框 -->
+      <div id="hall-new-group-modal" class="hall-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;">
+        <div class="hall-modal-content" style="background:#fff;border-radius:8px;max-width:600px;width:90%;max-height:80vh;overflow:auto;padding:24px;box-shadow:0 20px 40px rgba(0,0,0,0.2);">
+          <div class="hall-modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3 style="margin:0;font-size:18px;">${escapeHtml(t("Create New Group", "创建新群组"))}</h3>
+            <button type="button" class="hall-modal-close" onclick="document.getElementById('hall-new-group-modal').style.display='none'" style="background:none;border:none;font-size:24px;cursor:pointer;padding:0;line-height:1;">×</button>
+          </div>
+          
+          <div class="hall-modal-body">
+            <div style="margin-bottom:20px;">
+              <label style="display:block;margin-bottom:8px;font-weight:500;">${escapeHtml(t("Group Name", "群组名称"))}</label>
+              <input type="text" id="hall-new-group-name" placeholder="${escapeHtml(t("Enter group name...", "输入群组名称..."))}" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:14px;" />
+            </div>
+            
+            <div style="margin-bottom:16px;">
+              <label style="display:block;margin-bottom:8px;font-weight:500;">${escapeHtml(t("Choose Template", "选择模板"))}</label>
+              <div id="hall-group-templates" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;max-height:200px;overflow-y:auto;">
+                <div style="text-align:center;color:#666;">${escapeHtml(t("Loading...", "加载中..."))}</div>
+              </div>
+            </div>
+            
+            <div id="hall-selected-members" style="margin-bottom:16px;">
+              <label style="display:block;margin-bottom:8px;font-weight:500;">${escapeHtml(t("Selected Members", "已选成员"))}: <span id="hall-member-count">0</span></label>
+              <div id="hall-member-chips" style="display:flex;flex-wrap:wrap;gap:8px;min-height:40px;padding:8px;background:#f9f9f9;border-radius:4px;"></div>
+            </div>
+            
+            <div id="hall-member-selector" style="margin-bottom:16px;">
+              <input type="text" id="hall-member-search" placeholder="${escapeHtml(t("Search members...", "搜索成员..."))}" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:14px;margin-bottom:12px;" />
+              <div id="hall-all-members" style="display:flex;flex-wrap:wrap;gap:8px;max-height:150px;overflow-y:auto;"></div>
+            </div>
+          </div>
+          
+          <div class="hall-modal-footer" style="display:flex;gap:12px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid #eee;">
+            <button type="button" class="hall-secondary-button" onclick="document.getElementById('hall-new-group-modal').style.display='none'">${escapeHtml(t("Cancel", "取消"))}</button>
+            <button type="button" class="hall-button hall-button--primary" id="hall-create-group-btn">${escapeHtml(t("Create Group", "创建群组"))}</button>
+          </div>
+        </div>
+      </div>
     </section>
   `;
 }
@@ -2339,6 +2381,153 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
     renderVisibleThread();
     return false;
   };
+  
+  // 新建群组模态框功能
+  let selectedTemplateId = '';
+  let selectedMembers: string[] = [];
+  
+  window.__openclawHallNewGroup = async () => {
+    const modal = document.getElementById('hall-new-group-modal');
+    const templatesContainer = document.getElementById('hall-group-templates');
+    const membersContainer = document.getElementById('hall-all-members');
+    const memberSearch = document.getElementById('hall-member-search') as HTMLInputElement;
+    if (!modal || !templatesContainer || !membersContainer) return;
+    
+    // 重置选择
+    selectedTemplateId = '';
+    selectedMembers = [];
+    document.getElementById('hall-new-group-name').value = '';
+    updateMemberChips();
+    
+    // 显示模态框
+    modal.style.display = 'flex';
+    
+    // 加载模板
+    try {
+      const resp = await fetch('/api/hall/templates');
+      const data = await resp.json();
+      
+      // 渲染模板
+      templatesContainer.innerHTML = data.templates.map((t: any) =>
+        '<div class="hall-template-card" data-template-id="' + t.id + '" style="cursor:pointer;border:2px solid #eee;border-radius:8px;padding:12px;text-align:center;transition:all 0.2s;" onclick="window.__openclawHallSelectTemplate && window.__openclawHallSelectTemplate(\'' + t.id + '\', \'' + t.name.replace(/'/g, "\\'") + '\')">' +
+          '<div style="font-size:24px;">' + t.icon + '</div>' +
+          '<div style="font-weight:500;margin-top:4px;">' + t.name + '</div>' +
+          '<div style="font-size:12px;color:#666;">' + t.description + '</div>' +
+          '<div style="font-size:11px;color:#999;margin-top:4px;">' + (t.roles?.length || 0) + ' ' + (t.roles?.length > 0 ? 'members' : 'custom') + '</div>' +
+        '</div>'
+      ).join('');
+      
+      // 渲染成员列表（从hall participants）
+      const allMembers = bootstrap.participants || [];
+      membersContainer.innerHTML = allMembers.map((p: any) =>
+        '<button type="button" class="hall-member-chip" data-member-id="' + p.participantId + '" style="padding:6px 12px;border:1px solid #ddd;border-radius:16px;background:#fff;cursor:pointer;display:flex;align-items:center;gap:6px;" onclick="window.__openclawHallToggleMember && window.__openclawHallToggleMember(\'' + p.participantId + '\', \'' + p.displayName.replace(/'/g, "\\'") + '\')">' +
+          '<span style="width:24px;height:24px;border-radius:50%;background:' + getAvatarColor(p.displayName) + ';color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;">' + p.displayName.charAt(0).toUpperCase() + '</span>' +
+          '<span>' + p.displayName + '</span>' +
+        '</button>'
+      ).join('');
+      
+    } catch (e) {
+      templatesContainer.innerHTML = '<div style="color:red;">Failed to load templates</div>';
+    }
+  };
+  
+  window.__openclawHallSelectTemplate = (templateId: string, templateName: string) => {
+    selectedTemplateId = templateId;
+    // 高亮选中模板
+    document.querySelectorAll('.hall-template-card').forEach((el: any) => {
+      el.style.borderColor = el.dataset.templateId === templateId ? '#6366f1' : '#eee';
+      el.style.background = el.dataset.templateId === templateId ? '#f0f0ff' : '#fff';
+    });
+    // 如果选择了自定义模板，不预选成员
+    if (templateId === 'custom') {
+      selectedMembers = [];
+    }
+  };
+  
+  window.__openclawHallToggleMember = async (memberId: string, memberName: string) => {
+    // 如果选择了非自定义模板，提示用户先取消模板选择
+    if (selectedTemplateId && selectedTemplateId !== 'custom') {
+      setFlash('请先选择"自定义"模板来手动选择成员');
+      return;
+    }
+    
+    const idx = selectedMembers.indexOf(memberId);
+    if (idx >= 0) {
+      selectedMembers.splice(idx, 1);
+    } else {
+      selectedMembers.push(memberId);
+    }
+    
+    // 更新按钮样式
+    const btn = document.querySelector('[data-member-id="' + memberId + '"]') as HTMLElement;
+    if (btn) {
+      btn.style.background = selectedMembers.includes(memberId) ? '#6366f1' : '#fff';
+      btn.style.color = selectedMembers.includes(memberId) ? '#fff' : '#333';
+    }
+    
+    updateMemberChips();
+  };
+  
+  function updateMemberChips() {
+    const container = document.getElementById('hall-member-chips');
+    const countEl = document.getElementById('hall-member-count');
+    if (!container) return;
+    if (countEl) countEl.textContent = String(selectedMembers.length);
+    
+    container.innerHTML = selectedMembers.map(id => {
+      const p = (bootstrap.participants || []).find((x: any) => x.participantId === id);
+      const name = p?.displayName || id;
+      return '<span class="hall-selected-chip" style="background:#6366f1;color:#fff;padding:4px 10px;border-radius:12px;display:flex;align-items:center;gap:4px;font-size:12px;">' +
+        name + '<button type="button" onclick="window.__openclawHallToggleMember && window.__openclawHallToggleMember(\'' + id + '\', \'\')" style="background:none;border:none;color:#fff;cursor:pointer;padding:0;margin-left:4px;">×</button></span>';
+    }).join('');
+  }
+  
+  // 成员搜索过滤
+  root.addEventListener('input', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.id === 'hall-member-search') {
+      const query = target.value.toLowerCase();
+      document.querySelectorAll('[data-member-id]').forEach((el: any) => {
+        const name = el.textContent?.toLowerCase() || '';
+        el.style.display = name.includes(query) ? '' : 'none';
+      });
+    }
+  });
+  
+  // 创建群组按钮
+  document.getElementById('hall-create-group-btn')?.addEventListener('click', async () => {
+    const title = document.getElementById('hall-new-group-name').value.trim() || '新群组';
+    setFlash('正在创建群组...');
+    
+    try {
+      const resp = await fetch('/api/hall/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: '创建群组：' + title })
+      });
+      const data = await resp.json();
+      
+      if (data.ok) {
+        document.getElementById('hall-new-group-modal').style.display = 'none';
+        setFlash('群组 "' + title + '" 创建成功！');
+        await loadHall();
+      } else {
+        setFlash('创建失败: ' + (data.error || '未知错误'));
+      }
+    } catch (e) {
+      setFlash('创建失败: ' + (e instanceof Error ? e.message : String(e)));
+    }
+    return false;
+  });
+  
+  // 头像颜色函数
+  function getAvatarColor(name: string): string {
+    const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6'];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return colors[Math.abs(hash) % colors.length];
+  }
+  
   window.__openclawHallHandleComposerKeydown = (event) => {
     if (!event) return true;
     if (event.key !== 'Enter' || event.shiftKey) {
