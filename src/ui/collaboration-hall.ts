@@ -652,9 +652,9 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
   };
   const hallAvatarMarkup = (label, className) => {
     const avatar = deriveHallAvatar(label);
-    return '<div class="' + esc(className) + ' hall-agent-avatar" style="--agent-accent:' + esc(avatar.accent) + ';" data-animal="' + esc(avatar.animal) + '" aria-hidden="true"><div class="agent-stage"><canvas class="agent-pixel-canvas" width="64" height="64"></canvas></div></div>';
+    return '<div class="' + esc(className) + ' hall-agent-avatar" style="--agent-accent:' + esc(avatar.accent) + ';" data-animal="' + esc(avatar.animal) + '" aria-hidden="true"><div class="agent-stage"><<div class="hall-simple-avatar" style="background:' + esc(avatar.accent) + ';">' + esc(initial) + '</div></div></div>';
   };
-  const paintHallPixelAvatars = (container) => {
+  const // paintHallPixelAvatars = (container) => {
     const api = window.__openclawPixelAvatar;
     if (!api || typeof api.renderElement !== 'function') return;
     const els = container ? Array.from(container.querySelectorAll('.hall-agent-avatar')) : [];
@@ -1072,7 +1072,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
         '<span class="hall-member-status-dot" aria-hidden="true"></span>' +
       '</button>';
     }).join('');
-    paintHallPixelAvatars(memberStrip);
+    // paintHallPixelAvatars(memberStrip);
   };
   const renderToolbarMetaNote = () => {
     if (!toolbarMetaNote) return;
@@ -1389,7 +1389,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
         void loadTaskDetail();
       });
     });
-    paintHallPixelAvatars(taskList);
+    // paintHallPixelAvatars(taskList);
   };
 
   const renderDecisionInline = (payload, options = {}) => {
@@ -1585,7 +1585,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
           '<button type="button" class="hall-empty-action" onclick="return window.__openclawHallSetComposerValue ? window.__openclawHallSetComposerValue(' + JSON.stringify(askDecisionPrompt) + ') : false">' + esc(textAskManagerToDecide) + '</button>' +
         '</div>' +
       '</div>';
-      paintHallPixelAvatars(thread);
+      // paintHallPixelAvatars(thread);
       threadAutoFollow = false;
       return;
     }
@@ -1685,7 +1685,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
     } else {
       thread.scrollTop = Math.max(0, thread.scrollHeight - thread.clientHeight - previousDistanceFromBottom);
     }
-    paintHallPixelAvatars(thread);
+    // paintHallPixelAvatars(thread);
   };
 
   const renderTypingStrip = () => {
@@ -1713,7 +1713,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
       '<span class="hall-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>' +
     '</div>';
     typingStrip.hidden = false;
-    paintHallPixelAvatars(typingStrip);
+    // paintHallPixelAvatars(typingStrip);
     renderMemberStrip();
     renderToolbarMetaNote();
   };
@@ -1770,7 +1770,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
     const markup = payload ? renderDecisionInline(payload) : '';
     decisionPanel.innerHTML = markup;
     decisionPanel.hidden = !markup;
-    paintHallPixelAvatars(decisionPanel);
+    // paintHallPixelAvatars(decisionPanel);
   };
 
   const renderNewTaskDraftState = () => {
@@ -2827,7 +2827,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
   ensureActiveThreadPolling();
   void loadHall().catch((error) => setFlash(error instanceof Error ? error.message : String(error)));
   connectHallStream();
-  paintHallPixelAvatars(root);
+  // paintHallPixelAvatars(root);
   window.addEventListener('beforeunload', () => {
     if (reloadTimer) window.clearTimeout(reloadTimer);
     if (typingSweepTimer) window.clearInterval(typingSweepTimer);
@@ -3462,7 +3462,7 @@ function initialsForName(value: string): string {
 
 function renderHallPixelAvatar(label: string, className: string): string {
   const identity = resolveHallAvatarIdentity(label);
-  return `<div class="${escapeHtml(className)} hall-agent-avatar" style="--agent-accent:${escapeHtml(identity.accent)};" data-animal="${escapeHtml(identity.animal)}" aria-hidden="true"><div class="agent-stage"><canvas class="agent-pixel-canvas" width="64" height="64"></canvas></div></div>`;
+  return `<div class="${escapeHtml(className)} hall-agent-avatar" style="--agent-accent:${escapeHtml(identity.accent)};" data-animal="${escapeHtml(identity.animal)}" aria-hidden="true"><div class="agent-stage"><<div class="hall-simple-avatar" style="background:' + esc(avatar.accent) + ';">' + esc(initial) + '</div></div></div>`;
 }
 
 function resolveHallAvatarIdentity(input: string): { animal: string; accent: string; asset: string } {

@@ -225,6 +225,17 @@ export function renderCollaborationHallTheme(): string {
       place-items: center;
     }
     .hall-agent-avatar .agent-pixel-canvas {
+    .hall-agent-avatar .hall-simple-avatar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      font-weight: 600;
+      font-size: 14px;
+      color: #fff;
+    }
       position: absolute;
       inset: 0;
       width: 100%;
@@ -1462,7 +1473,29 @@ export function renderCollaborationHallTheme(): string {
       height: 18px;
     }
     .hall-agent-avatar .agent-pixel-canvas,
+    .hall-agent-avatar .hall-simple-avatar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      font-weight: 600;
+      font-size: 14px;
+      color: #fff;
+    }
     .hall-pixel-avatar .agent-pixel-canvas {
+    .hall-agent-avatar .hall-simple-avatar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      font-weight: 600;
+      font-size: 14px;
+      color: #fff;
+    }
       width: 100%;
       height: 100%;
       display: block;
