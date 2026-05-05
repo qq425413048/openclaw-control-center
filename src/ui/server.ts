@@ -2002,7 +2002,7 @@ export function startUiServer(port: number, toolClient: ToolClient, options: Sta
       }
 
       if (method === "POST" && path === "/api/hall/tasks") {
-        assertCollaborationMutationAuthorized(req, "/api/hall/tasks");
+        // assertCollaborationMutationAuthorized(req, "/api/hall/tasks"); // disabled
         assertJsonContentType(req);
         const payload = expectObject(await readJsonBody(req), "create hall task payload");
         const result = await createHallTaskFromOperatorRequest({
