@@ -2418,7 +2418,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
     const modal = document.getElementById('hall-new-group-modal');
     const templatesContainer = document.getElementById('hall-group-templates');
     const membersContainer = document.getElementById('hall-all-members');
-    const memberSearch = document.getElementById('hall-member-search') as HTMLInputElement;
+    const memberSearch = document.getElementById('hall-member-search') ;
     if (!modal || !templatesContainer || !membersContainer) return;
     
     // 重置选择
@@ -2487,7 +2487,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
     }
     
     // 更新按钮样式
-    const btn = document.querySelector('[data-member-id="' + memberId + '"]') as HTMLElement;
+    const btn = document.querySelector('[data-member-id="' + memberId + '"]');
     if (btn) {
       btn.style.background = selectedMembers.includes(memberId) ? '#6366f1' : '#fff';
       btn.style.color = selectedMembers.includes(memberId) ? '#fff' : '#333';
@@ -2512,7 +2512,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
   
   // 成员搜索过滤
   root.addEventListener('input', (e) => {
-    const target = e.target as HTMLElement;
+    const target = e.target;
     if (target.id === 'hall-member-search') {
       const query = target.value.toLowerCase();
       document.querySelectorAll('[data-member-id]').forEach((el: any) => {
@@ -2765,15 +2765,15 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
   });
   
   // 参与者搜索过滤功能
-  const participantSearchInput = root.getElementById('hall-participant-search') as HTMLInputElement | null;
+  const participantSearchInput = root.getElementById('hall-participant-search')  | null;
   const participantChipList = root.querySelector('.hall-order-chip-list');
   if (participantSearchInput && participantChipList) {
     const allChips = Array.from(participantChipList.querySelectorAll('.hall-order-chip'));
     participantSearchInput.addEventListener('input', (e) => {
-      const query = (e.target as HTMLInputElement).value.toLowerCase();
+      const query = (e.target ).value.toLowerCase();
       allChips.forEach((chip) => {
         const text = chip.textContent?.toLowerCase() || chip.innerHTML.toLowerCase();
-        (chip as HTMLElement).style.display = text.includes(query) ? '' : 'none';
+        (chip).style.display = text.includes(query) ? '' : 'none';
       });
     });
   }
