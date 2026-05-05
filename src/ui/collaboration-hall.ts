@@ -2412,7 +2412,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
   
   // 新建群组模态框功能
   let selectedTemplateId = '';
-  let selectedMembers: string[] = [];
+  let selectedMembers = [];
   
   window.__openclawHallNewGroup = async () => {
     const modal = document.getElementById('hall-new-group-modal');
@@ -2459,7 +2459,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
     }
   };
   
-  window.__openclawHallSelectTemplate = (templateId: string, templateName: string) => {
+  window.__openclawHallSelectTemplate = (templateId, templateName) => {
     selectedTemplateId = templateId;
     // 高亮选中模板
     document.querySelectorAll('.hall-template-card').forEach((el: any) => {
@@ -2472,7 +2472,7 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
     }
   };
   
-  window.__openclawHallToggleMember = async (memberId: string, memberName: string) => {
+  window.__openclawHallToggleMember = async (memberId, memberName) => {
     // 如果选择了非自定义模板，提示用户先取消模板选择
     if (selectedTemplateId && selectedTemplateId !== 'custom') {
       setFlash('请先选择"自定义"模板来手动选择成员');
