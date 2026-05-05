@@ -243,7 +243,7 @@ export function renderCollaborationHall(input: RenderCollaborationHallInput): st
           
           <div class="hall-modal-footer" style="display:flex;gap:12px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid #eee;">
             <button type="button" class="hall-secondary-button" onclick="document.getElementById('hall-new-group-modal').style.display='none'">${escapeHtml(t("Cancel", "取消"))}</button>
-            <button type="button" class="hall-button hall-button--primary" id="hall-create-group-btn">${escapeHtml(t("Create Group", "创建群组"))}</button>
+            <button type="button" class="hall-button hall-button--primary" id="hall-create-group-btn" onclick="window.__openclawHallCreateGroup && window.__openclawHallCreateGroup()">${escapeHtml(t("Create Group", "创建群组"))}</button>
           </div>
         </div>
       </div>
@@ -2524,7 +2524,11 @@ export function renderCollaborationHallClientScript(language: UiLanguage): strin
   
   // 创建群组按钮
   document.getElementById('hall-create-group-btn')?.addEventListener('click', async () => {
-    const title = document.getElementById('hall-new-group-name').value.trim() || '新群组';
+    window.__openclawHallCreateGroup?.();
+  });
+  
+  window.__openclawHallCreateGroup = async () => {
+    const title = document.getElementById('hall-new-group-name')?.value?.trim() || '新群组';
     setFlash('正在创建群组...');
     
     try {
