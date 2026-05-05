@@ -515,6 +515,39 @@ export function renderCollaborationHallTheme(): string {
       line-height: 1.5;
       color: #5f7484;
     }
+    /* 删除按钮样式 */
+    .hall-task-card-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .hall-task-card-wrapper:hover .hall-task-delete-btn {
+      opacity: 1;
+    }
+    .hall-task-delete-btn {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: none;
+      background: #ef4444;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      line-height: 1;
+    }
+    .hall-task-delete-btn:hover {
+      background: #dc2626;
+    }
     .hall-detail-actions {
       margin-top: 10px;
     }
